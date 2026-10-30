@@ -190,6 +190,7 @@ export default async function EditProductPage({ params, searchParams }: Props) {
       <div className="mt-8">
         <ProductForm
           action={saveProduct.bind(null, product.id)}
+          productId={product.id}
           categories={categories ?? []}
           status={product.status}
           initial={{

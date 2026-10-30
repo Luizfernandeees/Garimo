@@ -89,3 +89,25 @@ Isso aplica só a nova migration, `20261031120000_product_management.sql`. Pelo 
 ## Próxima fase
 
 **Fase 3, legendas com IA:** gerador com os 15 estilos (editáveis), versões curta e completa, Instagram e WhatsApp, histórico e botões de copiar e compartilhar. Requer uma chave da API da Anthropic, que é paga por uso. Antes de implementar, apresento a estimativa de custo e o limite diário configurável.
+
+## Complemento: divulgação sem IA
+
+Na página de cada produto publicado há a seção **Divulgar**, com posts prontos gerados por modelos de texto. Não usa IA e não tem custo.
+
+- Formatos WhatsApp e Instagram, e 5 modelos: Direto, Achado, Economia, Benefícios e Minimalista.
+- **Economia** só aparece com preço anterior confirmado. **Benefícios** só aparece quando a descrição tem pelo menos 2 frases, e os tópicos são as frases cadastradas, sem alteração.
+- "Outra versão" troca a frase de abertura. O texto pode ser editado antes de copiar.
+- O link do WhatsApp usa `?src=whatsapp`, para que os cliques vindos do canal sejam identificados. O post do Instagram indica o link da bio, porque links na legenda não são clicáveis.
+- Botões: Copiar texto, Abrir no WhatsApp (conversas e grupos), Compartilhar (celular), Copiar só o link e Abrir na Shopee. Abrir na Shopee usa o link direto e não conta clique.
+- Frase de apoio incluída por padrão, com opção de desligar: “💛 Comprando pelo link você ajuda a GARIMO a continuar garimpando”. Para mudar o texto, edite `DISCLOSURE` em `src/lib/post-templates.ts`.
+
+Arquivos: `src/lib/post-templates.ts`, `src/components/admin/ShareComposer.tsx` e a página `src/app/admin/(painel)/produtos/[id]/page.tsx`.
+
+## Complemento: bloqueio de produtos repetidos
+
+- **Mesmo link de afiliado:** bloqueado. O aviso aparece assim que o link é colado e novamente ao salvar, com o atalho para abrir o produto já cadastrado.
+- **Mesmo item da Shopee com outro link:** bloqueado quando o link permite identificar o item (links longos `…-i.LOJA.ITEM` ou `/product/LOJA/ITEM`). Para links curtos (`s.shopee.com.br/…`), o servidor consulta só o endereço de redirecionamento, sem abrir a página, com limite de 3 s. Se a Shopee não responder, segue sem essa identificação.
+- **Nome parecido:** não bloqueia, mas mostra os produtos parecidos e pede a confirmação “é um produto diferente” antes de salvar.
+- O banco também impede repetição por conta própria (índices únicos em `affiliate_url` e `shopee_item_key`), mesmo que alguém contorne o painel.
+
+Migration: `20261031140000_prevent_duplicates.sql` (já aplicada no projeto em 30/10/2026).

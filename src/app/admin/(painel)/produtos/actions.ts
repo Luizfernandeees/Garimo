@@ -3,7 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/supabase/guard";
-import { fieldErrorsFrom, productSchema, publishProblems, type ProductFormState } from "@/lib/product-schema";
+import {
+  fieldErrorsFrom,
+  isShopeeUrl,
+  productSchema,
+  publishProblems,
+  type ExistingProduct,
+  type ProductFormState,
+} from "@/lib/product-schema";
+import { resolveItemKey } from "@/lib/shopee-link";
 import { STORAGE_BUCKET, storagePathFromUrl } from "@/lib/images";
 import { slugify } from "@/lib/slug";
 import type { ProductStatus } from "@/types/database";
@@ -14,7 +22,41 @@ function refreshSite() {
   revalidatePath("/", "layout");
 }
 
+type Db = Awaited<ReturnType<typeof requireAdmin>>["supabase"];
+
+const STATUS_PT: Record<ExistingProduct["status"], string> = { draft: "rascunho", published: "publicado", archived: "arquivado" };
+
+// Procura um produto já cadastrado com o mesmo link ou o mesmo item da Shopee.
+async function findDuplicate(supabase: Db, url: string, itemKey: string | null, excludeId: string | null) {
+  const byLink = supabase.from("products").select("id, name, status").eq("affiliate_url", url);
+  const { data: sameLink } = await (excludeId ? byLink.neq("id", excludeId) : byLink).limit(1).maybeSingle();
+  if (sameLink) return { product: sameLink as ExistingProduct, reason: "link" as const };
+  if (itemKey) {
+    const byItem = supabase.from("products").select("id, name, status").eq("shopee_item_key", itemKey);
+    const { data: sameItem } = await (excludeId ? byItem.neq("id", excludeId) : byItem).limit(1).maybeSingle();
+    if (sameItem) return { product: sameItem as ExistingProduct, reason: "item" as const };
+  }
+  return null;
+}
+
+function duplicateMessage(d: { product: ExistingProduct; reason: "link" | "item" }) {
+  return d.reason === "link"
+    ? `Este link já está cadastrado em “${d.product.name}” (${STATUS_PT[d.product.status]}).`
+    : `Este produto da Shopee já está cadastrado como “${d.product.name}” (${STATUS_PT[d.product.status]}), com outro link de afiliado.`;
+}
+
+// Verificação rápida feita assim que o link é colado no formulário.
+export async function checkProductLink(url: string, productId: string | null): Promise<{ message: string; product: ExistingProduct } | null> {
+  const { supabase } = await requireAdmin();
+  const clean = url.trim();
+  if (!isShopeeUrl(clean)) return null;
+  const dup = await findDuplicate(supabase, clean, await resolveItemKey(clean), productId);
+  return dup ? { message: duplicateMessage(dup), product: dup.product } : null;
+}
+
 function friendlyDbError(message: string) {
+  if (message.includes("products_affiliate_url_key")) return "Este link de afiliado já está cadastrado em outro produto.";
+  if (message.includes("products_shopee_item_key")) return "Este produto da Shopee já está cadastrado.";
   if (message.includes("products_published_needs_price")) return "Informe o preço atual para publicar.";
   if (message.includes("affiliate_url")) return "O link de afiliado não é válido.";
   if (message.includes("acesso negado")) return "Sua sessão não tem permissão de administrador. Entre novamente.";
@@ -34,15 +76,45 @@ export async function saveProduct(productId: string | null, _prev: ProductFormSt
   // imagens deixaram de ser usadas.
   let currentStatus: ProductStatus = "draft";
   let previousImages: string[] = [];
+  let previousLink: string | null = null;
+  let previousItemKey: string | null = null;
   if (productId) {
     const { data: existing } = await supabase
       .from("products")
-      .select("status, images:product_images(url)")
+      .select("status, affiliate_url, shopee_item_key, images:product_images(url)")
       .eq("id", productId)
       .maybeSingle();
     if (!existing) return { status: "error", message: "Este produto não existe mais." };
     currentStatus = existing.status;
     previousImages = existing.images.map((i) => i.url);
+    previousLink = existing.affiliate_url;
+    previousItemKey = existing.shopee_item_key;
+  }
+
+  // ---- Bloqueio de repetidos -------------------------------------------
+  const linkChanged = input.affiliate_url !== previousLink;
+  const itemKey = linkChanged ? await resolveItemKey(input.affiliate_url) : previousItemKey;
+  if (linkChanged) {
+    const dup = await findDuplicate(supabase, input.affiliate_url, itemKey, productId);
+    if (dup) {
+      return {
+        status: "error",
+        message: "Produto repetido: nada foi salvo.",
+        fieldErrors: { affiliate_url: duplicateMessage(dup) },
+        duplicate: dup.product,
+      };
+    }
+  }
+  // Nome parecido com outro produto: pede confirmação (só no cadastro).
+  if (!productId && !input.confirm_similar) {
+    const { data: similar } = await supabase.rpc("admin_similar_products", { p_name: input.name });
+    if (similar?.length) {
+      return {
+        status: "warning",
+        message: "Já existe produto com nome parecido. Confira se não é o mesmo antes de salvar.",
+        similar: similar.map((p) => ({ id: p.id, name: p.name, status: p.status })),
+      };
+    }
   }
 
   const targetStatus: ProductStatus =
@@ -75,6 +147,7 @@ export async function saveProduct(productId: string | null, _prev: ProductFormSt
       category_id: input.category_id,
       is_featured: input.is_featured,
       status: targetStatus,
+      ...(linkChanged ? { shopee_item_key: itemKey } : {}),
     },
     p_images: input.images,
   });

@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { CheckCircle2, LoaderCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, LoaderCircle } from "lucide-react";
 import { ProductCard } from "@/components/public/ProductCard";
 import { ImageManager, type FormImage } from "./ImageManager";
 import { discountPercent, parsePrice } from "@/lib/price";
-import type { ProductFormState } from "@/lib/product-schema";
+import { isShopeeUrl, type ExistingProduct, type ProductFormState } from "@/lib/product-schema";
+import { checkProductLink } from "@/app/admin/(painel)/produtos/actions";
 import type { ProductStatus } from "@/types/database";
 
 export type ProductFormValues = {
@@ -92,16 +93,33 @@ function SubmitButtons({ isNew, status }: { isNew: boolean; status?: ProductStat
   );
 }
 
+const STATUS_PT: Record<ExistingProduct["status"], string> = { draft: "Rascunho", published: "Publicado", archived: "Arquivado" };
+
+function ExistingLink({ product }: { product: ExistingProduct }) {
+  return (
+    <a
+      href={`/admin/produtos/${product.id}`}
+      target="_blank"
+      rel="noopener"
+      className="inline-flex items-center gap-1 font-semibold underline underline-offset-2"
+    >
+      Abrir “{product.name.length > 50 ? `${product.name.slice(0, 50)}…` : product.name}” <ExternalLink className="size-3.5" aria-hidden />
+    </a>
+  );
+}
+
 export function ProductForm({
   action,
   initial,
   categories,
   status,
+  productId = null,
 }: {
   action: (state: ProductFormState, formData: FormData) => Promise<ProductFormState>;
   initial: ProductFormValues;
   categories: Category[];
   status?: ProductStatus;
+  productId?: string | null;
 }) {
   const isNew = !status;
   const [state, formAction] = useActionState(action, {});
@@ -109,6 +127,13 @@ export function ProductForm({
   // Erros vêm do servidor; somem do campo assim que ele é editado.
   const [e, setErrors] = useState<NonNullable<ProductFormState["fieldErrors"]>>({});
   useEffect(() => setErrors(state.fieldErrors ?? {}), [state]);
+
+  // Os botões de salvar ficam no fim do formulário e os avisos no topo:
+  // depois de salvar, rola até o aviso para ele não passar despercebido.
+  const topRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (state.status) topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [state]);
   const set = <K extends keyof ProductFormValues>(key: K, value: ProductFormValues[K]) => {
     setV((old) => ({ ...old, [key]: value }));
     setErrors((old) => {
@@ -124,6 +149,25 @@ export function ProductForm({
     "aria-invalid": e[id as keyof typeof e] ? true : undefined,
     "aria-describedby": e[id as keyof typeof e] ? `${id}-erro` : `${id}-dica`,
   });
+
+  // Verificação de repetido assim que o link é colado ou o campo perde o foco.
+  const [linkDup, setLinkDup] = useState<{ message: string; product: ExistingProduct } | null>(null);
+  const [checking, setChecking] = useState(false);
+  async function verifyLink(value: string) {
+    const url = value.trim();
+    if (!isShopeeUrl(url) || url === initial.affiliate_url) {
+      setLinkDup(null);
+      return;
+    }
+    setChecking(true);
+    try {
+      setLinkDup(await checkProductLink(url, productId));
+    } catch {
+      setLinkDup(null);
+    } finally {
+      setChecking(false);
+    }
+  }
 
   // Prévia ao vivo do cartão como ele aparecerá no site.
   const preview = useMemo(() => {
@@ -149,7 +193,8 @@ export function ProductForm({
       <input type="hidden" name="images" value={JSON.stringify(v.images)} />
 
       <div className="space-y-6">
-        {state.message ? (
+        <div ref={topRef} className="scroll-mt-24" aria-hidden />
+        {state.message && state.status !== "warning" ? (
           <p
             role={state.status === "error" ? "alert" : "status"}
             className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm ${
@@ -159,6 +204,27 @@ export function ProductForm({
             {state.status === "success" ? <CheckCircle2 className="size-4" aria-hidden /> : null}
             {state.message}
           </p>
+        ) : null}
+
+        {state.status === "warning" && state.similar?.length ? (
+          <div role="alert" className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-4 text-sm text-amber-950">
+            <p className="flex items-center gap-2 font-semibold">
+              <AlertTriangle className="size-4" aria-hidden /> {state.message}
+            </p>
+            <ul className="space-y-1.5">
+              {state.similar.map((p) => (
+                <li key={p.id} className="flex flex-wrap items-center gap-x-2">
+                  <ExistingLink product={p} />
+                  <span className="text-amber-900/70">({STATUS_PT[p.status]})</span>
+                </li>
+              ))}
+            </ul>
+            <label className="flex items-start gap-2.5 font-medium">
+              <input type="checkbox" name="confirm_similar" className="mt-0.5 size-4 accent-[#F07842]" />
+              Conferi: é um produto diferente. Pode salvar.
+            </label>
+            <p className="text-amber-900/70">Marque e clique de novo em salvar.</p>
+          </div>
         ) : null}
 
         <fieldset className="min-w-0 space-y-5 rounded-[var(--radius-card)] border border-ink/8 bg-white p-5 sm:p-6">
@@ -177,10 +243,34 @@ export function ProductForm({
               spellCheck={false}
               placeholder="https://s.shopee.com.br/…"
               value={v.affiliate_url}
-              onChange={(ev) => set("affiliate_url", ev.target.value)}
+              onChange={(ev) => {
+                set("affiliate_url", ev.target.value);
+                setLinkDup(null);
+              }}
+              onBlur={(ev) => verifyLink(ev.target.value)}
+              onPaste={(ev) => {
+                const pasted = ev.clipboardData.getData("text");
+                setTimeout(() => verifyLink(pasted), 0);
+              }}
               className={input}
             />
           </Field>
+          {checking ? (
+            <p className="flex items-center gap-2 text-sm text-ink/55">
+              <LoaderCircle className="size-4 animate-spin" aria-hidden /> Verificando se já está cadastrado…
+            </p>
+          ) : null}
+          {linkDup && !e.affiliate_url ? (
+            <div role="alert" className="flex gap-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-900">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <div className="space-y-1">
+                <p className="font-semibold">Produto repetido</p>
+                <p>{linkDup.message}</p>
+                <ExistingLink product={linkDup.product} />
+              </div>
+            </div>
+          ) : null}
+          {state.duplicate && e.affiliate_url ? <ExistingLink product={state.duplicate} /> : null}
         </fieldset>
 
         <fieldset className="min-w-0 space-y-5 rounded-[var(--radius-card)] border border-ink/8 bg-white p-5 sm:p-6">

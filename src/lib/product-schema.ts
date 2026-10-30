@@ -11,10 +11,16 @@ export type ProductField =
   | "category_id"
   | "images";
 
+export type ExistingProduct = { id: string; name: string; status: "draft" | "published" | "archived" };
+
 export type ProductFormState = {
-  status?: "success" | "error";
+  status?: "success" | "error" | "warning";
   message?: string;
   fieldErrors?: Partial<Record<ProductField, string>>;
+  /** Produto idêntico já cadastrado (mesmo link ou mesmo item da Shopee). */
+  duplicate?: ExistingProduct;
+  /** Produtos com nome parecido: pede confirmação antes de salvar. */
+  similar?: ExistingProduct[];
 };
 
 // Aceita apenas links da Shopee. O texto é guardado exatamente como foi
@@ -88,6 +94,7 @@ export const productSchema = z
         }
       }),
     intent: z.enum(["draft", "publish", "save"]),
+    confirm_similar: z.literal("on").optional().transform(Boolean),
   })
   .superRefine((v, ctx) => {
     if (v.previous_price_confirmed) {

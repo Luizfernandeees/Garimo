@@ -41,6 +41,7 @@ export type Database = {
           category_id: string | null;
           status: Database["public"]["Enums"]["product_status"];
           is_featured: boolean;
+          shopee_item_key: string | null;
           created_at: string;
           updated_at: string;
           published_at: string | null;
@@ -58,6 +59,7 @@ export type Database = {
           category_id?: string | null;
           status?: Database["public"]["Enums"]["product_status"];
           is_featured?: boolean;
+          shopee_item_key?: string | null;
           created_at?: string;
           updated_at?: string;
           published_at?: string | null;
@@ -75,6 +77,7 @@ export type Database = {
           category_id?: string | null;
           status?: Database["public"]["Enums"]["product_status"];
           is_featured?: boolean;
+          shopee_item_key?: string | null;
           created_at?: string;
           updated_at?: string;
           published_at?: string | null;
@@ -166,6 +169,10 @@ export type Database = {
       admin_save_product: {
         Args: { p_id: string | null; p_data: Json; p_images?: Json };
         Returns: Database["public"]["Tables"]["products"]["Row"];
+      };
+      admin_similar_products: {
+        Args: { p_name: string; p_exclude?: string | null };
+        Returns: { id: string; name: string; slug: string; status: Database["public"]["Enums"]["product_status"]; similarity: number }[];
       };
       admin_category_counts: {
         Args: never;
