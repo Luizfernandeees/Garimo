@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, ExternalLink, Link2, RefreshCw, Send, Share2 } from "lucide-react";
-import { availableStyles, buildPost, productLink, type PostFormat, type PostProduct, type PostStyle } from "@/lib/post-templates";
+import { availableStyles, buildPost, DISCLOSURE, productLink, type PostFormat, type PostProduct, type PostStyle } from "@/lib/post-templates";
 
 type Props = {
   product: PostProduct & { affiliate_url: string };
@@ -96,8 +96,8 @@ export function ShareComposer({ product, siteUrl, published }: Props) {
         <label className="flex items-start gap-3 text-sm">
           <input type="checkbox" checked={disclosure} onChange={(e) => setDisclosure(e.target.checked)} className="mt-0.5 size-4 accent-[#F07842]" />
           <span>
-            <span className="font-medium">Incluir aviso de link de afiliado</span>
-            <span className="block text-ink/55">Recomendado: deixa claro para o seguidor que é um link comissionado.</span>
+            <span className="font-medium">Incluir frase de apoio</span>
+            <span className="block text-ink/55">“{DISCLOSURE}”</span>
           </span>
         </label>
 
