@@ -42,6 +42,9 @@ const OPENERS: Record<"achado" | "economia", string[]> = {
 };
 const EMOJI = ["✨", "👀", "🛍️", "💡"];
 
+// Frase que indica, de forma leve, que o link é de afiliado.
+export const DISCLOSURE = "💛 Comprando pelo link você ajuda a GARIMO a continuar garimpando";
+
 // Frases da descrição, exatamente como foram cadastradas.
 export function descriptionSentences(description: string | null) {
   return (description ?? "")
@@ -127,7 +130,7 @@ export function buildPost(
     lines.push("", tags.join(" "));
   }
   if (opts.disclosure) {
-    lines.push("", wa ? "_Link de afiliado: posso receber comissão pela compra, sem custo extra para você._" : "Link de afiliado: posso receber comissão pela compra, sem custo extra para você.");
+    lines.push("", DISCLOSURE);
   }
 
   // Remove linhas nulas e linhas em branco repetidas.
