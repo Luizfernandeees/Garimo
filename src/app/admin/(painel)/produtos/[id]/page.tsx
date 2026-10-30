@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Archive, ArrowLeft, ExternalLink, FilePen, Send } from "lucide-react";
 import { ProductForm } from "@/components/admin/ProductForm";
+import { ShareComposer } from "@/components/admin/ShareComposer";
+import { env } from "@/lib/env";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { SubmitButton } from "@/components/admin/SubmitButton";
 import { requireAdmin } from "@/lib/supabase/guard";
@@ -161,6 +163,29 @@ export default async function EditProductPage({ params, searchParams }: Props) {
           {notice.text}
         </p>
       ) : null}
+
+      <section aria-labelledby="divulgar" className="mt-8 rounded-[var(--radius-card)] border border-ink/8 bg-white p-5 sm:p-6">
+        <h2 id="divulgar" className="font-display text-lg font-semibold">
+          Divulgar
+        </h2>
+        <p className="mt-1 text-sm text-ink/60">
+          Posts prontos com os dados salvos deste produto. Salve as alterações do formulário antes de gerar o post.
+        </p>
+        <ShareComposer
+          published={product.status === "published"}
+          siteUrl={env.siteUrl}
+          product={{
+            name: product.name,
+            slug: product.slug,
+            description: product.description,
+            current_price: product.current_price,
+            previous_price: product.previous_price,
+            discount_percent: product.discount_percent,
+            category: categories?.find((c) => c.id === product.category_id)?.name ?? null,
+            affiliate_url: product.affiliate_url,
+          }}
+        />
+      </section>
 
       <div className="mt-8">
         <ProductForm
