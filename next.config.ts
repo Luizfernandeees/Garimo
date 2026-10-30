@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
-import { EXTERNAL_IMAGE_HOSTS } from "./src/lib/image-hosts";
+// Hosts externos aceitos para imagens coladas por link (CDN da Shopee).
+// Mantenha igual à lista em src/lib/image-hosts.ts. A lista fica repetida
+// aqui de propósito: o next.config é carregado antes do resto do projeto e
+// não deve importar arquivos de src/.
+const EXTERNAL_IMAGE_HOSTS = ["down-br.img.susercontent.com", "cf.shopee.com.br"];
 
 const supabase = (() => {
   try {
