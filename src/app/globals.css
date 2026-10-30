@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+@theme {
+  /* Paleta GARIMO */
+  --color-brand: #f07842;        /* laranja principal: fundos, ícones, botões */
+  --color-brand-hover: #e8692f;
+  --color-brand-deep: #b84a1c;   /* laranja para TEXTO pequeno (contraste AA) */
+  --color-ink: #292929;          /* grafite */
+  --color-cream: #fff4ea;
+  --color-cream-deep: #ffe8d4;
+  --color-leaf: #27865b;         /* verde de apoio: descontos e WhatsApp */
+  --color-leaf-hover: #1f6f4a;
+
+  --font-display: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --radius-card: 1.25rem;
+  --radius-panel: 2rem;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-white font-sans text-ink antialiased;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-brand);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  ::selection {
+    background: var(--color-cream-deep);
+  }
+}
+
+@utility container-page {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 76rem;
+  padding-inline: 1rem;
+  @media (width >= 40rem) {
+    padding-inline: 1.5rem;
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Única animação de entrada do site: os raios da sacola no hero. */
+@keyframes ray-in {
+  from { opacity: 0; transform: translate(-3px, 3px) scale(0.6); }
+  to   { opacity: 1; transform: none; }
+}
+.rays path {
+  transform-box: fill-box;
+  transform-origin: left bottom;
+  animation: ray-in 420ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
